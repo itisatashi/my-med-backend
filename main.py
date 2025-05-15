@@ -539,33 +539,63 @@ async def proxy_ai_request(request: Request):
     """
     Proxy requests to the external AI API to avoid CORS issues
     """
+    print("\n===== API PROXY REQUEST RECEIVED =====")
     try:
-        data = await request.json()
-        prompt = data.get("prompt", "")
+        # Debug: Log headers
+        print("Request headers:")
+        for header, value in request.headers.items():
+            print(f"  {header}: {value}")
+            
+        # Get request body
+        try:
+            data = await request.json()
+            print(f"Request body: {data}")
+            prompt = data.get("prompt", "")
+            print(f"Extracted prompt: {prompt}")
+        except Exception as json_error:
+            print(f"Error parsing JSON: {str(json_error)}")
+            raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(json_error)}")
         
+        if not prompt:
+            print("Error: Empty prompt received")
+            raise HTTPException(status_code=400, detail="No prompt provided in request")
+        
+        print(f"Calling external API with prompt: {prompt}")
         # Use the existing query_external_api function
         result = query_external_api(prompt)
+        print(f"Received result from external API: {result[:100]}...")
         
         # Save this consultation to history automatically
         # Estimate severity based on text analysis
         severity = estimate_severity(prompt, result)
+        print(f"Estimated severity: {severity}")
         
         # Save consultation to database
-        consultation_id = save_consultation({
-            'symptoms': prompt,
-            'diagnosis': result,
-            'severity': severity
-        })
+        try:
+            consultation_id = save_consultation({
+                'symptoms': prompt,
+                'diagnosis': result,
+                'severity': severity
+            })
+            print(f"Saved consultation with ID: {consultation_id}")
+        except Exception as db_error:
+            print(f"Error saving to database: {str(db_error)}")
+            consultation_id = None
         
         # Return both the AI response and the consultation ID
-        return {
+        response_data = {
             "response": result,
             "consultation_id": consultation_id,
             "severity": severity
         }
+        print(f"Returning response: {str(response_data)[:100]}...")
+        print("===== API PROXY REQUEST COMPLETED =====\n")
+        return response_data
     except Exception as e:
         print(f"Error in proxy endpoint: {str(e)}")
+        print("===== API PROXY REQUEST FAILED =====\n")
         raise HTTPException(status_code=500, detail=f"Error calling external API: {str(e)}")
+
 
 # Endpoint to delete all consultation history (use with caution)
 @app.delete("/api/history/all")
