@@ -499,6 +499,24 @@ async def check_api_health():
             "message": "External API is not available"
         }
 
+# API endpoint to proxy requests to the external AI API
+@app.post("/api/proxy")
+async def proxy_ai_request(request: Request):
+    """
+    Proxy requests to the external AI API to avoid CORS issues
+    """
+    try:
+        data = await request.json()
+        prompt = data.get("prompt", "")
+        
+        # Use the existing query_external_api function
+        result = query_external_api(prompt)
+        
+        return {"response": result}
+    except Exception as e:
+        print(f"Error in proxy endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error calling external API: {str(e)}")
+
 # Run the FastAPI app with: uvicorn main:app --reload
 if __name__ == "__main__":
     import uvicorn
