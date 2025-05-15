@@ -22,12 +22,21 @@ app = FastAPI(
 
 # Configure CORS
 # Add CORS middleware to allow frontend to communicate with this API
+origins = [
+    "https://my-med-frontend.vercel.app",  # Production Vercel frontend
+    "http://localhost:5173",               # Local development server
+    "http://localhost:5174",               # Alternative local port
+    "*"                                   # Allow all origins (remove in strict production)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development; restrict inn production
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],                  # Expose all headers
+    max_age=600                           # Cache preflight requests for 10 minutes
 )
 
 # Database setup
