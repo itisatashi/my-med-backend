@@ -375,6 +375,31 @@ async def get_history():
         print(f"Error fetching history: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch consultation history: {str(e)}")
 
+# Delete a specific consultation by ID
+@app.delete("/api/history/{consultation_id}")
+async def delete_consultation(consultation_id: int):
+    """
+    Delete a specific consultation by ID
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Delete the consultation record
+        cursor.execute("DELETE FROM consultations WHERE id = ?", (consultation_id,))
+        
+        # Delete associated symptoms
+        cursor.execute("DELETE FROM symptoms WHERE consultation_id = ?", (consultation_id,))
+        
+        # Commit the changes
+        conn.commit()
+        conn.close()
+        
+        return {"message": f"Consultation {consultation_id} deleted successfully", "status": "success"}
+    except Exception as e:
+        print(f"Error deleting consultation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete consultation: {str(e)}")
+
 @app.get("/api/analytics")
 async def get_analytics():
     """
@@ -521,10 +546,52 @@ async def proxy_ai_request(request: Request):
         # Use the existing query_external_api function
         result = query_external_api(prompt)
         
-        return {"response": result}
+        # Save this consultation to history automatically
+        # Estimate severity based on text analysis
+        severity = estimate_severity(prompt, result)
+        
+        # Save consultation to database
+        consultation_id = save_consultation({
+            'symptoms': prompt,
+            'diagnosis': result,
+            'severity': severity
+        })
+        
+        # Return both the AI response and the consultation ID
+        return {
+            "response": result,
+            "consultation_id": consultation_id,
+            "severity": severity
+        }
     except Exception as e:
         print(f"Error in proxy endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error calling external API: {str(e)}")
+
+# Endpoint to delete all consultation history (use with caution)
+@app.delete("/api/history/all")
+async def delete_all_history():
+    """
+    Delete all consultation history from the database
+    WARNING: This will permanently delete all consultation records
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Delete all records from consultations table
+        cursor.execute("DELETE FROM consultations")
+        
+        # Delete all records from symptoms table
+        cursor.execute("DELETE FROM symptoms")
+        
+        # Commit the changes
+        conn.commit()
+        conn.close()
+        
+        return {"message": "All consultation history has been deleted successfully", "status": "success"}
+    except Exception as e:
+        print(f"Error deleting history: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete consultation history: {str(e)}")
 
 # Run the FastAPI app with: uvicorn main:app --reload
 if __name__ == "__main__":
